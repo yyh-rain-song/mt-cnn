@@ -93,10 +93,10 @@ def read_json():
 
 def deal_data(only_level=False):
     global Y
-    img_root = "./data/bedroom"
-    level_root = "./data/levels"
-    seg_root = "./data/seg_matrix"
-    deep_root = "./data/depth"
+    img_root = "../data/bedroom"
+    level_root = "../data/levels"
+    seg_root = "../data/seg_mat"
+    deep_root = "../data/depth_new"
 
     wanted_size = (300, 200)
     files = os.listdir(level_root)
@@ -105,14 +105,14 @@ def deal_data(only_level=False):
     depth__ = None
     level__ = None
 
-    for i in range(0, 2115-800):
+    for i in range(0, 2118):
         f_name = files[i].split('.')[0]
         img = cv2.imread(img_root + "/" + f_name + ".jpg")
         img = cv2.resize(img, dsize=wanted_size, interpolation=cv2.INTER_NEAREST)
         seg = np.load(seg_root+"/"+f_name+".npy")
         depth = np.load(deep_root+"/"+f_name+".npy")
         level = np.load(level_root+"/"+f_name+".npy")
-        if i%100==0:
+        if i%16==0:
             if i!=0:
                 print(i)
                 X = images
@@ -122,8 +122,8 @@ def deal_data(only_level=False):
                 X = X.transpose(2, 3)
                 X = X.transpose(1, 2)
                 print(Y.shape)
-                torch.save(X, "./data/datax_{0}.th".format(i+800))
-                torch.save(Y, "./data/datay_{0}.th".format(i+800))
+                torch.save(X, "../data/data_batch/bx_{0}.th".format(int(i/16)))
+                torch.save(Y, "../data/data_batch/by_{0}.th".format(int(i/16)))
 
             images = torch.reshape(torch.Tensor(img), (1, wanted_size[1], wanted_size[0], 3))
             segmentation = torch.reshape(torch.Tensor(seg), (1, wanted_size[1], wanted_size[0], 1))
@@ -156,22 +156,6 @@ def deal_pic(image, dic):
     return matrix
 
 
-def change_seg():
-    outdic = "./data/bedroom_level"
-    indic = "./data/bedroom_level"
-    files = os.listdir(indic)
-    dictory = {}
-    i = 0
-    for img in files:
-        i += 1
-        img = img.split('.')[0]
-        image = cv2.imread(indic + "/" + img + ".png")
-        mtx = deal_pic(image, dictory)
-        np.save(outdic+"/"+img+".tpy", mtx)
-        if i == 5:
-            return
-
-
 def draw_img():
     depth = np.load('draw_it.npy')
     # print(depth)
@@ -183,30 +167,22 @@ def draw_img():
 
 
 def batch_gen_data():
-    # x = torch.zeros((2100, 3, 200, 300))
-    # y = torch.zeros((2100, 3, 200, 300))
-    # for i in range(1, 22):
-    #     frt = (i-1)*100
-    #     bk = i*100
-    #     x[frt:bk] = torch.load("./data/data_concat/datax_{}.th".format(bk))
-    #     y[frt:bk] = torch.load("./data/data_concat/datay_{}.th".format(bk))
-    # torch.save(x, "data_x.th")
-    # torch.save(y, "data_y.th")
-
-    x = torch.load("data_x.th")
-    y = torch.load("data_y.th")
-
-    for i in range(0, 120):
-        frt = i*16
-        bk = (i+1)*16
-        bx = x[frt:bk].clone()
-        by = y[frt:bk].clone()
-        torch.save(bx, "./data/data_batch/bx_{0}.th".format(i))
-        torch.save(by, "./data/data_batch/by_{0}.th".format(i))
-    tx = x[60*32:].clone()
-    ty = y[60*32:].clone()
-    torch.save(tx, "./data/data_batch/tx.th")
-    torch.save(ty, "./data/data_batch/ty.th")
+    tx = None
+    ty = None
+    for i in range(121, 133):
+        print(i)
+        x = torch.load("../data/data_batch/bx_{0}.th".format(i))
+        y = torch.load("../data/data_batch/by_{0}.th".format(i))
+        if i == 121:
+            tx = x
+            ty = y
+        else:
+            tx = torch.cat((tx, x))
+            ty = torch.cat((ty, y))
+    print(tx.shape)
+    print(ty.shape)
+    torch.save(tx, "../data/data_batch/tx.th")
+    torch.save(ty, "../data/data_batch/ty.th")
 
 
 if __name__ == '__main__':

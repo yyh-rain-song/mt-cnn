@@ -20,9 +20,9 @@ class Model(torch.nn.Module):
         self.deconv1 = resnet_deconv(inplanes=plane, layers=[2, 2, 2, 2], out_classes=segment_classes, init_scale=img_scale)
         self.deconv2 = resnet_deconv(inplanes=plane, layers=[2, 2, 2, 2], out_classes=1, init_scale=img_scale)
         self.conv = torch.nn.Conv2d(in_channels=segment_classes+1, kernel_size=3, out_channels=level_classes, padding=1)
-        self.sigmoid1 = torch.nn.Sigmoid()
+        # self.sigmoid1 = torch.nn.Sigmoid()
         self.sigmoid2 = torch.nn.Sigmoid()
-        self.sigmoid3 = torch.nn.Sigmoid()
+        # self.sigmoid3 = torch.nn.Sigmoid()
 
     def forward(self, x):
         x = self.layer0(x)
@@ -31,12 +31,12 @@ class Model(torch.nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         seg = self.deconv1(x)
-        seg = self.sigmoid1(seg)
+        # seg = self.sigmoid1(seg)
         depth = self.deconv2(x)
         depth = self.sigmoid2(depth)
         level = torch.cat((seg, depth), dim=1)
         level = self.conv(level)
-        level = self.sigmoid3(level)
+        # level = self.sigmoid3(level)
         return seg, depth, level
 
 
@@ -46,14 +46,14 @@ class Trainer:
         self.optimizer = optimizer
         self.training = training
         self.epoch = epoch
-        self.batch_pointer = 0
+        self.batch_pointer = 1
         self.use_cuda = use_cuda
 
     def get_batch_data(self):
         bx = torch.load(cf.data_path+"/"+"bx_{0}.th".format(self.batch_pointer))
         by = torch.load(cf.data_path+"/"+"by_{0}.th".format(self.batch_pointer))
         self.batch_pointer += 1
-        self.batch_pointer = self.batch_pointer % 60
+        self.batch_pointer = self.batch_pointer % 120 + 1
         if self.use_cuda:
             bx = bx.cuda()
             by = by.cuda()
@@ -70,13 +70,13 @@ class Trainer:
         return loss
 
     def train(self, use_only_level=False):
-        file = open("output.txt", "w")
+        # file = open("output.txt", "w")
         self.model.train()
         for i in range(0, self.epoch):
             x, y = self.get_batch_data()
             y_seg, y_depth, y_level = self.model(x)
             loss = self.loss_func(y_seg, y_depth, y_level, y, use_only_level)
-            print("Epoch:{}, Loss:{:.4f}".format(i, loss.data), file=file)
+            print("Epoch:{}, Loss:{:.4f}".format(i, loss.data))
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -85,10 +85,11 @@ class Trainer:
                 torch.save(y_depth, "d_depth")
                 torch.save(y_level, "d_level")
         torch.save(self.model.state_dict(), "./model/model.pth")
-        print("model saved!", file=file)
+        print("model saved!")
 
     def evaluate(self, input_x, input_y, use_only_level=False):
         self.model.eval()
+        print("EValuate!")
         y_seg, y_depth, y_level = self.model(input_x)
         loss = self.loss_func(y_seg, y_depth, y_level, input_y, use_only_level)
         print("Evaluate Loss:{:.4f}".format(loss.data), file=open("eval.txt", "w"))

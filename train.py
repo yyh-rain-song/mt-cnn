@@ -10,7 +10,7 @@ def main():
         model.cuda()
     else:
         print("No cuda QAQ")
-    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.01), epoch=10, use_cuda=torch.cuda.is_available())
+    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.01), epoch=600, use_cuda=torch.cuda.is_available())
     trainer.train()
     # trainer.evaluate(X_test, Y_test)
 
