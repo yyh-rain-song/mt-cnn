@@ -12,14 +12,16 @@ class Model(torch.nn.Module):
         resnet = ResNet.resnet50()
         self.segment_classes = segment_classes
         self.level_classes = level_classes
-        for param in resnet.parameters():
-            param.requires_grad = False
+        # for param in resnet.parameters():
+        #     param.requires_grad = False
         self.layer0 = torch.nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool)
         self.layer1, self.layer2, self.layer3, self.layer4 = resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4
         plane = resnet.fc.in_features
         self.deconv1 = resnet_deconv(inplanes=plane, layers=[2, 2, 2, 2], out_classes=segment_classes, init_scale=img_scale)
         self.deconv2 = resnet_deconv(inplanes=plane, layers=[2, 2, 2, 2], out_classes=1, init_scale=img_scale)
         self.conv = torch.nn.Conv2d(in_channels=segment_classes+1, kernel_size=3, out_channels=level_classes, padding=1)
+        self.droutput1 = torch.nn.Dropout(p=0.8)
+        self.droutput2 = torch.nn.Dropout(p=0.8)
         # self.sigmoid1 = torch.nn.Sigmoid()
         self.sigmoid2 = torch.nn.Sigmoid()
         # self.sigmoid3 = torch.nn.Sigmoid()
@@ -30,13 +32,13 @@ class Model(torch.nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        seg = self.deconv1(x)
+        seg = self.deconv1(self.droutput1(x))
         # seg = self.sigmoid1(seg)
-        depth = self.deconv2(x)
+        depth = self.deconv2(self.droutput2(x))
         depth = self.sigmoid2(depth)
         level = torch.cat((seg, depth), dim=1)
         level = self.conv(level)
-        # level = self.sigmoid3(level)
+        # level = self.sigmoid3(level)*3+1
         return seg, depth, level
 
 
@@ -65,12 +67,15 @@ class Trainer:
         loss_seg = torch.nn.CrossEntropyLoss()
         loss = loss_level(input=y_level, target=y[:, 2, :, :].long())
         if not use_only_level:
-            loss += loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
+            loss += 0.5*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
                     + loss_depth(input=y_depth.float(),target=y[:, 1, :,:].float())
         return loss
 
-    def train(self, use_only_level=False):
+    def train(self, use_only_level=False, init_from_exist=False):
         # file = open("output.txt", "w")
+        if init_from_exist:
+            dic = torch.load('./model/model.pth')
+            self.model.load_state_dict(dic)
         self.model.train()
         for i in range(0, self.epoch):
             x, y = self.get_batch_data()
@@ -80,20 +85,26 @@ class Trainer:
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            if i % 120 == 0:
+                self.evaluate(int(i/120)%12)
             if i == self.epoch-1:
-                torch.save(y_seg, "d_seg")
-                torch.save(y_depth, "d_depth")
-                torch.save(y_level, "d_level")
+                torch.save(y_level.clone().detach(), "d_level.th")
+                torch.save(y[:,2,:,:].clone().detach(), 'd_truth.th')
         torch.save(self.model.state_dict(), "./model/model.pth")
         print("model saved!")
 
-    def evaluate(self, input_x, input_y, use_only_level=False):
+    def evaluate(self, test_idx, use_only_level=False, load_path=False):
+        if load_path is True:
+            dic = torch.load('./model/model.pth')
+            self.model.load_state_dict(dic)
         self.model.eval()
-        print("EValuate!")
-        y_seg, y_depth, y_level = self.model(input_x)
-        loss = self.loss_func(y_seg, y_depth, y_level, input_y, use_only_level)
-        print("Evaluate Loss:{:.4f}".format(loss.data), file=open("eval.txt", "w"))
-        torch.save(y_seg, "eval_seg")
-        torch.save(y_depth, "eval_depth")
-        torch.save(y_level, "eval_level")
+        bx = torch.load(cf.data_path + "/" + "tx_{0}".format(test_idx))
+        by = torch.load(cf.data_path + "/" + "ty_{0}".format(test_idx))
+        if self.use_cuda:
+            bx = bx.cuda()
+            by = by.cuda()
+        y_seg, y_depth, y_level = self.model(bx)
+        loss = self.loss_func(y_seg, y_depth, y_level, by, use_only_level)
+        print("=================== Evaluate Loss:{:.4f} =================".format(loss.data))
+        # torch.save(y_level, "eval_level")
         return y_seg, y_depth, y_level

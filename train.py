@@ -5,14 +5,12 @@ from Config import Config as cf
 
 def main():
     model = Model(cf.segment_class, cf.level_class, cf.image_scale)
-    print("========== data has been load! ==========")
     if torch.cuda.is_available():
         model.cuda()
     else:
         print("No cuda QAQ")
-    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.01), epoch=600, use_cuda=torch.cuda.is_available())
-    trainer.train()
-    # trainer.evaluate(X_test, Y_test)
+    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.001), epoch=2400, use_cuda=torch.cuda.is_available())
+    trainer.train(init_from_exist=False)
 
     # seg, depth, level = trainer.evaluate(None)
     # torch.save(seg, "d_seg")
