@@ -43,13 +43,17 @@ class Model(torch.nn.Module):
 
 
 class Trainer:
-    def __init__(self, model, optimizer, epoch=50, training=True, use_cuda=False):
+    def __init__(self, model, optimizer, epoch=50, loss_weight=None, training=True, use_cuda=False):
         self.model = model
         self.optimizer = optimizer
         self.training = training
         self.epoch = epoch
         self.batch_pointer = 1
         self.use_cuda = use_cuda
+        if loss_weight is None:
+            print('================ Error! Weight for loss function is not fed! ===============')
+        else:
+            self.loss_weight = loss_weight
 
     def get_batch_data(self):
         pt = int((self.batch_pointer+1)/2)
@@ -72,11 +76,11 @@ class Trainer:
         loss_depth = torch.nn.MSELoss()
         loss_level = torch.nn.CrossEntropyLoss()
         loss_seg = torch.nn.CrossEntropyLoss()
-        loss = 2*loss_level(input=y_level, target=y[:, 2, :, :].long())
+        loss = self.loss_weight[0]*loss_level(input=y_level, target=y[:, 2, :, :].long())
         if not use_only_level:
-            loss += 5*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
-                    + loss_depth(input=y_depth.float(),target=y[:, 1, :,:].float())
-        return loss
+            loss += self.loss_weight[1]*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
+                    + self.loss_weight[2]*loss_depth(input=y_depth.float(),target=y[:, 1, :,:].float())
+        return loss, loss_level
 
     def train(self, use_only_level=False, init_from_exist=False):
         if init_from_exist:
@@ -86,9 +90,9 @@ class Trainer:
         for i in range(0, self.epoch):
             x, y = self.get_batch_data()
             y_seg, y_depth, y_level = self.model(x)
-            loss = self.loss_func(y_seg, y_depth, y_level, y, use_only_level)
+            loss, loss_level = self.loss_func(y_seg, y_depth, y_level, y, use_only_level)
             if i % 10 == 0:
-                print("Epoch:{}, Loss:{:.4f}".format(i, loss.data))
+                print("Epoch:{}, Loss:{:.4f}, loss_level:{:.4f}".format(i, loss.data, loss_level.data))
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -116,31 +120,41 @@ class Trainer:
         by2 = by[8:].clone()
 
         y_seg, y_depth, y_level = self.model(bx1)
-        loss = self.loss_func(y_seg, y_depth, y_level, by1, use_only_level)
+        loss, level = self.loss_func(y_seg, y_depth, y_level, by1, use_only_level)
         torch.save(y_level, cf.output_path+prefix+str(test_idx)+"_0.npy")
         y_seg, y_depth, y_level = self.model(bx2)
-        loss += self.loss_func(y_seg, y_depth, y_level, by2, use_only_level)
+        a, b = self.loss_func(y_seg, y_depth, y_level, by2, use_only_level)
+        loss += a
+        level += b
         torch.save(y_level, cf.output_path+prefix + str(test_idx) + "_1.npy")
-        return loss.data/2
+        return loss.data/2, level.data/2
 
     def valid(self):
         self.model.eval()
         loss = 0
+        loss_level = 0
         idx = 0
         for i in range(651, 721):
-            loss += self.evaluate(i, 'valid_')
+            a, b = self.evaluate(i, 'valid_')
+            loss += a
+            loss_level += b
             idx += 1
         loss = loss/idx
+        loss_level = loss_level/idx
         self.model.train()
-        print('========== Evaluate ! loss {0} ============'.format(loss))
+        print('========== Evaluate ! loss {0} loss_level {1} ============'.format(loss, loss_level))
 
     def test(self):
         self.model.eval()
         loss = 0
+        loss_level = 0
         idx = 0
-        for i in range(721, 794):
-            loss += self.evaluate(i, 'test_')
+        for i in range(651, 721):
+            a, b = self.evaluate(i, 'valid_')
+            loss += a
+            loss_level += b
             idx += 1
-        loss = loss/idx
+        loss = loss / idx
+        loss_level = loss_level / idx
         self.model.train()
-        print('========== Test ! loss {0} ============'.format(loss))
+        print('========== Test ! loss {0} loss_level {1}============'.format(loss, loss_level))
