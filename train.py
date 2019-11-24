@@ -10,8 +10,8 @@ def main():
     else:
         print("No cuda QAQ")
     # torchsummary.summary(model, (3, 465, 640))
-    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.001), epoch=13000, use_cuda=torch.cuda.is_available())
-    trainer.train(init_from_exist=False)
+    trainer = Trainer(model, torch.optim.Adam(model.parameters(), lr=0.001), epoch=65000, use_cuda=torch.cuda.is_available())
+    trainer.train(init_from_exist=True)
     trainer.test()
 
     # seg, depth, level = trainer.evaluate(None)

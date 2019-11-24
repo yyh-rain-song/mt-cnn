@@ -95,9 +95,9 @@ class Trainer:
             if i % 1300 == 0:
                 self.valid()
             if i == self.epoch-1:
-                torch.save(y_level.clone().detach(), "d_level.th")
-                torch.save(y[:,2,:,:].clone().detach(), 'd_truth.th')
-        torch.save(self.model.state_dict(), "./model/model.pth")
+                torch.save(y_level.clone().detach(), cf.output_path+"d_level.th")
+                torch.save(y[:,2,:,:].clone().detach(), cf.output_path+'d_truth.th')
+        torch.save(self.model.state_dict(), cf.output_path+"model.pth")
         print("model saved!")
 
     def evaluate(self, test_idx, prefix, use_only_level=False, load_path=False):
@@ -117,10 +117,10 @@ class Trainer:
 
         y_seg, y_depth, y_level = self.model(bx1)
         loss = self.loss_func(y_seg, y_depth, y_level, by1, use_only_level)
-        torch.save(y_level, '/Disk2/yonglu/1/'+prefix+str(test_idx)+"_0.npy")
+        torch.save(y_level, cf.output_path+prefix+str(test_idx)+"_0.npy")
         y_seg, y_depth, y_level = self.model(bx2)
         loss += self.loss_func(y_seg, y_depth, y_level, by2, use_only_level)
-        torch.save(y_level, '/Disk2/yonglu/1/' + prefix + str(test_idx) + "_1.npy")
+        torch.save(y_level, cf.output_path+prefix + str(test_idx) + "_1.npy")
         return loss.data/2
 
     def valid(self):
