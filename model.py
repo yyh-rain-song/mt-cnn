@@ -9,7 +9,7 @@ from PIL import Image
 class Model(torch.nn.Module):
     def __init__(self, segment_classes, level_classes, img_scale):
         super(Model, self).__init__()
-        resnet = ResNet.resnet50()
+        resnet = ResNet.resnet18()
         self.segment_classes = segment_classes
         self.level_classes = level_classes
         # for param in resnet.parameters():
@@ -52,10 +52,17 @@ class Trainer:
         self.use_cuda = use_cuda
 
     def get_batch_data(self):
-        bx = torch.load(cf.data_path+"/"+"bx_{0}.th".format(self.batch_pointer))
-        by = torch.load(cf.data_path+"/"+"by_{0}.th".format(self.batch_pointer))
+        pt = int((self.batch_pointer+1)/2)
+        bx = torch.load(cf.data_path+"/"+"bx_{0}.th".format(pt))
+        by = torch.load(cf.data_path+"/"+"by_{0}.th".format(pt))
         self.batch_pointer += 1
-        self.batch_pointer = self.batch_pointer % 120 + 1
+        self.batch_pointer = self.batch_pointer % 1440 + 1
+        if self.batch_pointer % 2 == 0:
+            bx = bx[:8].clone()
+            by = by[:8].clone()
+        else:
+            bx = bx[8:].clone()
+            by = by[8:].clone()
         if self.use_cuda:
             bx = bx.cuda()
             by = by.cuda()
@@ -65,14 +72,13 @@ class Trainer:
         loss_depth = torch.nn.MSELoss()
         loss_level = torch.nn.CrossEntropyLoss()
         loss_seg = torch.nn.CrossEntropyLoss()
-        loss = loss_level(input=y_level, target=y[:, 2, :, :].long())
+        loss = 2*loss_level(input=y_level, target=y[:, 2, :, :].long())
         if not use_only_level:
-            loss += 0.5*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
+            loss += 5*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
                     + loss_depth(input=y_depth.float(),target=y[:, 1, :,:].float())
         return loss
 
     def train(self, use_only_level=False, init_from_exist=False):
-        # file = open("output.txt", "w")
         if init_from_exist:
             dic = torch.load('./model/model.pth')
             self.model.load_state_dict(dic)
@@ -81,30 +87,60 @@ class Trainer:
             x, y = self.get_batch_data()
             y_seg, y_depth, y_level = self.model(x)
             loss = self.loss_func(y_seg, y_depth, y_level, y, use_only_level)
-            print("Epoch:{}, Loss:{:.4f}".format(i, loss.data))
+            if i % 10 == 0:
+                print("Epoch:{}, Loss:{:.4f}".format(i, loss.data))
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            if i % 120 == 0:
-                self.evaluate(int(i/120)%12)
+            if i % 1300 == 0:
+                self.valid()
             if i == self.epoch-1:
                 torch.save(y_level.clone().detach(), "d_level.th")
                 torch.save(y[:,2,:,:].clone().detach(), 'd_truth.th')
         torch.save(self.model.state_dict(), "./model/model.pth")
         print("model saved!")
 
-    def evaluate(self, test_idx, use_only_level=False, load_path=False):
+    def evaluate(self, test_idx, prefix, use_only_level=False, load_path=False):
         if load_path is True:
             dic = torch.load('./model/model.pth')
             self.model.load_state_dict(dic)
-        self.model.eval()
-        bx = torch.load(cf.data_path + "/" + "tx_{0}".format(test_idx))
-        by = torch.load(cf.data_path + "/" + "ty_{0}".format(test_idx))
+        bx = torch.load(cf.data_path + "/" + "bx_{0}.th".format(test_idx))
+        by = torch.load(cf.data_path + "/" + "by_{0}.th".format(test_idx))
         if self.use_cuda:
             bx = bx.cuda()
             by = by.cuda()
-        y_seg, y_depth, y_level = self.model(bx)
-        loss = self.loss_func(y_seg, y_depth, y_level, by, use_only_level)
-        print("=================== Evaluate Loss:{:.4f} =================".format(loss.data))
-        # torch.save(y_level, "eval_level")
-        return y_seg, y_depth, y_level
+        bx1 = bx[:8].clone()
+        by1 = by[:8].clone()
+
+        bx2 = bx[8:].clone()
+        by2 = by[8:].clone()
+
+        y_seg, y_depth, y_level = self.model(bx1)
+        loss = self.loss_func(y_seg, y_depth, y_level, by1, use_only_level)
+        torch.save(y_level, '/Disk2/yonglu/1/'+prefix+str(test_idx)+"_0.npy")
+        y_seg, y_depth, y_level = self.model(bx2)
+        loss += self.loss_func(y_seg, y_depth, y_level, by2, use_only_level)
+        torch.save(y_level, '/Disk2/yonglu/1/' + prefix + str(test_idx) + "_1.npy")
+        return loss.data/2
+
+    def valid(self):
+        self.model.eval()
+        loss = 0
+        idx = 0
+        for i in range(651, 721):
+            loss += self.evaluate(i, 'valid_')
+            idx += 1
+        loss = loss/idx
+        self.model.train()
+        print('========== Evaluate ! loss {0} ============'.format(loss))
+
+    def test(self):
+        self.model.eval()
+        loss = 0
+        idx = 0
+        for i in range(721, 794):
+            loss += self.evaluate(i, 'test_')
+            idx += 1
+        loss = loss/idx
+        self.model.train()
+        print('========== Test ! loss {0} ============'.format(loss))

@@ -81,9 +81,9 @@ class ResNetDeconv(nn.Module):
         self.layer2 = self._make_layer(block, 256, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 128, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 64, layers[3], stride=2)
-        scale = (int(init_scale[0]/2), int(init_scale[1]/2))
+        scale = (int(init_scale[0]/2+0.5), int(init_scale[1]/2))
         self.unpooling = nn.Upsample(size=scale)
-        self.deconv1 = nn.ConvTranspose2d(64, out_classes, kernel_size=7, stride=2, padding=3, output_padding=1)
+        self.deconv1 = nn.ConvTranspose2d(64, out_classes, kernel_size=7, stride=2, padding=3, output_padding=(0,1))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

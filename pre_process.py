@@ -34,14 +34,13 @@ def read_json():
 
 
 def deal_data(only_level=False):
-    global Y
     img_root = "../data/bedroom"
     level_root = "../data/levels"
     seg_root = "../data/seg_mat"
     deep_root = "../data/depth_new"
 
     wanted_size = (300, 200)
-    files = os.listdir(level_root)
+    files = os.listdir(img_root)
     images = None
     segmentation = None
     depth__ = None
