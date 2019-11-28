@@ -10,7 +10,7 @@ def main():
     else:
         print("No cuda QAQ")
     trainer = Trainer(model, torch.optim.Adam(model.parameters(), cf.lr), epoch=cf.epoch, use_cuda=torch.cuda.is_available(),
-                      loss_weight=cf.loss_weight)
+                      loss_weight=cf.loss_weight, loss_func=3)
     trainer.train(init_from_exist=cf.import_model)
     trainer.test()
 
