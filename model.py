@@ -77,10 +77,11 @@ class Trainer:
         loss_level = torch.nn.CrossEntropyLoss()
         loss_seg = torch.nn.CrossEntropyLoss()
         loss = self.loss_weight[0]*loss_level(input=y_level, target=y[:, 2, :, :].long())
+        level = loss.clone().detach().data
         if not use_only_level:
             loss += self.loss_weight[1]*loss_seg(input=y_seg, target=y[:, 0, :, :].long()) \
                     + self.loss_weight[2]*loss_depth(input=y_depth.float(),target=y[:, 1, :,:].float())
-        return loss, loss_level
+        return loss, level
 
     def train(self, use_only_level=False, init_from_exist=False):
         if init_from_exist:
@@ -92,7 +93,7 @@ class Trainer:
             y_seg, y_depth, y_level = self.model(x)
             loss, loss_level = self.loss_func(y_seg, y_depth, y_level, y, use_only_level)
             if i % 10 == 0:
-                print("Epoch:{}, Loss:{:.4f}, loss_level:{:.4f}".format(i, loss.data, loss_level.data))
+                print("Epoch:{}, Loss:{:.4f}, loss_level:{:.4f}".format(i, loss.data, loss_level))
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -127,7 +128,7 @@ class Trainer:
         loss += a
         level += b
         torch.save(y_level, cf.output_path+prefix + str(test_idx) + "_1.npy")
-        return loss.data/2, level.data/2
+        return loss.data/2, level/2
 
     def valid(self):
         self.model.eval()

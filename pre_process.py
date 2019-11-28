@@ -95,20 +95,5 @@ def get_better_size():
         print(w[i * 100], end=' ')
 
 
-def make_test_batch():
-    tx = torch.load('../data/data_batch/tx.th')
-    ty = torch.load('../data/data_batch/ty.th')
-    print(tx.shape)
-    print(ty.shape)
-    for i in range(0, int(tx.shape[0]/16)):
-        frt = i*16
-        bk = (i+1)*16
-        tx_i = tx[frt:bk].clone().detach()
-        ty_i = ty[frt:bk].clone().detach()
-        torch.save(tx_i, "../data/data_batch/tx_{0}".format(i))
-        torch.save(ty_i, "../data/data_batch/ty_{0}".format(i))
-
-
 if __name__ == '__main__':
-    make_test_batch()
     pass
